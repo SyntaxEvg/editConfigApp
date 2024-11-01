@@ -1,0 +1,144 @@
+﻿@using editConfigApp.Services
+@inject IConfigurationEditorService ConfigurationService
+@rendermode InteractiveServer
+<div class="config-entry" style="margin-left: @($"{Depth * 20}px")">
+    <div class="form-group row align-items-center">
+        <div class="col-auto">
+            @if (Entry.IsObject || Entry.IsArray)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleExpand">
+                    @if (Entry.IsExpanded)
+                    {
+                        <span>-</span>
+                    }
+                    else
+                    {
+                        <span>+</span>
+                    }
+                </button>
+            }
+        </div>
+        <div class="col-3">
+            <InputText class="form-control" @bind-Value="Entry.Key" @bind-Value:after="OnEntryValueChanged" placeholder="Key" />
+        </div>
+        @if (!Entry.IsObject && !Entry.IsArray)
+        {
+            <div class="col-4">
+                <InputText class="form-control" @bind-Value="ValueAsString" @bind-Value:after="OnEntryValueChanged"  placeholder="Value" />
+            </div>
+        }
+        <div class="col">
+            <button type="button" class="btn btn-danger btn-sm" @onclick="@(() => OnDelete.InvokeAsync())">Delete</button>
+            @* @if (!Entry.IsObject && !Entry.IsArray)
+            {
+                <button id="button-addon5" type="button" class="btn btn-primary btn-sm" @onclick="ConvertToObject_Click">@ConverttoObject</button>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="() => ConvertToArray()">Convert to Array</button>
+            } *@
+        </div>
+    </div>
+
+    @if ((Entry.IsObject || Entry.IsArray) && Entry.IsExpanded)
+    {
+        <div class="nested-entries mt-2">
+            <CascadingValue Value="this">
+                @foreach (var childEntrys in Entry.Children)
+                {
+                    var childEntry = childEntrys; // Создаем локальную копию
+                    <ConfigurationEntryEditor Entry="childEntrys"
+                                              OnEntryChanged="@((e) => OnChildEntryChanged(childEntry, e))"
+                                              OnDelete="@(() => DeleteChild(childEntrys))"
+                                              Depth="Depth + 1" />
+                }
+            </CascadingValue>
+            <button type="button"
+                    class="btn btn-sm btn-primary mt-2"
+                    @onclick="@(e => AddChild(e))"
+                    style="margin-left: @($"{(Depth + 1) * 20}px")">
+                Add Child
+            </button>
+        </div>
+    }
+</div>
+
+
+@code {
+    [Parameter] public ConfigurationEntry Entry { get; set; }
+    [Parameter] public EventCallback<ConfigurationEntry> OnDelete { get; set; }
+    [Parameter] public int Depth { get; set; } = 0;
+    [Parameter] public string ConverttoObject { get; set; } = "Convert_Object";
+
+    [Parameter] public EventCallback<ConfigurationEntry> OnEntryChanged { get; set; }
+    
+    private async Task OnEntryValueChanged()
+    {
+        await OnEntryChanged.InvokeAsync(Entry);
+    }
+    private EventCallback CreateClickHandler(ConfigurationEntry item)
+    {
+        return EventCallback.Factory.Create(this, () => HandleClick(item));
+    }
+    private async Task OnChildEntryChanged(ConfigurationEntry oldEntry, ConfigurationEntry newEntry)
+    {
+        var index = Entry.Children.IndexOf(oldEntry);
+        if (index != -1)
+        {
+            Entry.Children[index] = newEntry;
+        }
+        await OnEntryChanged.InvokeAsync(Entry);
+    }
+    private void HandleClick(ConfigurationEntry item)
+    {
+        // Обработка клика
+    }
+    private string ValueAsString
+    {
+        get => Entry.Value?.ToString();
+        set => Entry.Value = value;
+    }
+
+    private void DeleteChild(ConfigurationEntry child)
+    {
+        Entry.Children.Remove(child);
+        StateHasChanged();
+    }
+
+    private void AddChild(MouseEventArgs e)
+    {
+        Entry.Children.Add(new ConfigurationEntry
+            {
+                Key = "NewKey",
+                Value = Entry.IsArray ? "NewValue" : "NewValue"
+            });
+        StateHasChanged();
+    }
+
+    private async Task ConvertToObject_Click()
+    {
+        Entry.Value = new JObject();
+        Entry.Children = new List<ConfigurationEntry>();
+        await OnEntryChanged.InvokeAsync(Entry);
+        StateHasChanged();
+    }
+
+    private void ConvertToArray()
+    {
+        Entry.Value = new JArray();
+        Entry.Children = new List<ConfigurationEntry>();
+        OnEntryChanged.InvokeAsync(Entry).GetAwaiter();
+        StateHasChanged();
+    }
+    private void ToggleExpand()
+    {
+        if (Entry.IsObject || Entry.IsArray)
+        {
+            Entry.IsExpanded = !Entry.IsExpanded;
+            OnEntryChanged.InvokeAsync(Entry).GetAwaiter();
+            StateHasChanged();
+        }
+
+    }
+    private void SaveEntry()
+    {
+        StateHasChanged();
+    }
+}

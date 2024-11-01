@@ -1,0 +1,17 @@
+﻿@inject IUserAccessService UserAccessService
+
+@if (IsAllowed)
+{
+    @ChildContent
+}
+else
+{
+    <p>У вас нет доступа к этому контенту.</p>
+}
+
+@code {
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private bool IsAllowed => UserAccessService.IsUserAllowed();
+}
